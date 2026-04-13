@@ -45,10 +45,12 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
     try {
         const { name, std, year, sem } = req.body;
 
-        // 🔥 FIX: resource_type changed to "raw"
+        // ✅ FIX: ensure proper PDF handling
         const result = await cloudinary.uploader.upload(req.file.path, {
             resource_type: "raw",
             folder: "pdf_uploads",
+            public_id: req.file.originalname.split(".")[0], // keep filename
+            format: "pdf", // force pdf format
         });
 
         // delete local file after upload
@@ -59,7 +61,7 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
             std,
             year,
             sem,
-            url: result.secure_url,
+            url: result.secure_url, // ✅ already correct now
         });
 
         await newPdf.save();
@@ -88,7 +90,7 @@ app.get("/pdfs", async (req, res) => {
     }
 });
 
-/* ================= DOWNLOAD API (NEW) ================= */
+/* ================= DOWNLOAD API (FIXED) ================= */
 
 app.get("/download/:id", async (req, res) => {
     try {
@@ -98,8 +100,11 @@ app.get("/download/:id", async (req, res) => {
             return res.status(404).json({ message: "PDF not found" });
         }
 
-        // 🔥 Force download from Cloudinary
-        const downloadUrl = pdf.url.replace("/upload/", "/upload/fl_attachment/");
+        // ✅ FIX: force download with proper filename
+        const downloadUrl = pdf.url.replace(
+            "/upload/",
+            `/upload/fl_attachment:${pdf.name}.pdf/`
+        );
 
         res.redirect(downloadUrl);
     } catch (error) {
