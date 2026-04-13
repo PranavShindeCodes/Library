@@ -22,7 +22,9 @@ cloudinary.config({
 });
 
 /* ================= MONGOOSE SCHEMA ================= */
+
 console.log(process.env.MONGO_URI);
+
 const pdfSchema = new mongoose.Schema({
     name: String,
     std: String,
@@ -43,9 +45,9 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
     try {
         const { name, std, year, sem } = req.body;
 
-        // upload to cloudinary
+        // 🔥 FIX: resource_type changed to "raw"
         const result = await cloudinary.uploader.upload(req.file.path, {
-            resource_type: "auto", // pdf support
+            resource_type: "raw",
             folder: "pdf_uploads",
         });
 
@@ -83,6 +85,25 @@ app.get("/pdfs", async (req, res) => {
         res.status(500).json({
             message: error.message,
         });
+    }
+});
+
+/* ================= DOWNLOAD API (NEW) ================= */
+
+app.get("/download/:id", async (req, res) => {
+    try {
+        const pdf = await Pdf.findById(req.params.id);
+
+        if (!pdf) {
+            return res.status(404).json({ message: "PDF not found" });
+        }
+
+        // 🔥 Force download from Cloudinary
+        const downloadUrl = pdf.url.replace("/upload/", "/upload/fl_attachment/");
+
+        res.redirect(downloadUrl);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 
