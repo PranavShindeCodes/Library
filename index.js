@@ -5,8 +5,13 @@ import multer from "multer";
 import cors from "cors";
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
-
+import dns from "dns"
 dotenv.config();
+
+dns.setServers([
+    `1.1.1.1`,
+    `8.8.8.8`
+])
 
 const app = express();
 
