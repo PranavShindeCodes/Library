@@ -41,33 +41,53 @@ const pdfSchema = new mongoose.Schema({
 
 const Pdf = mongoose.model("pdf", pdfSchema);
 
-/* ================= MULTER (LOCAL STORAGE) ================= */
+/* ================= MULTER ================= */
 
-const upload = multer({ dest: "uploads/" });
+const upload = multer({
+    dest: "uploads/",
+});
 
 /* ================= UPLOAD API ================= */
 
 app.post("/upload-pdf", upload.single("file"), async (req, res) => {
+
     try {
+
         const { name, std, year, sem } = req.body;
 
-        // remove .pdf from filename
+        if (!req.file) {
+            return res.status(400).json({
+                message: "PDF file required",
+            });
+        }
+
+        // remove .pdf extension
         const fileName = req.file.originalname.replace(".pdf", "");
 
-        // upload to cloudinary
+        /* ================= CLOUDINARY UPLOAD ================= */
+
         const result = await cloudinary.uploader.upload(req.file.path, {
+
             resource_type: "raw",
+
             folder: "pdf_uploads",
+
             public_id: fileName,
-            format: "pdf",
+
             use_filename: true,
+
             unique_filename: false,
+
         });
 
-        // delete local uploaded file
-        fs.unlinkSync(req.file.path);
+        /* ================= DELETE LOCAL FILE ================= */
 
-        // save in mongodb
+        if (fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+
+        /* ================= SAVE DATABASE ================= */
+
         const newPdf = new Pdf({
             name,
             std,
@@ -78,14 +98,22 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
 
         await newPdf.save();
 
-        res.json({
+        res.status(200).json({
+
             message: "PDF Uploaded Successfully 🚀",
+
             data: newPdf,
+
         });
 
     } catch (error) {
+
+        console.log(error);
+
         res.status(500).json({
+
             message: error.message,
+
         });
     }
 });
@@ -93,13 +121,19 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
 /* ================= GET ALL PDF ================= */
 
 app.get("/pdfs", async (req, res) => {
+
     try {
+
         const data = await Pdf.find();
+
         res.json(data);
 
     } catch (error) {
+
         res.status(500).json({
+
             message: error.message,
+
         });
     }
 });
@@ -107,44 +141,63 @@ app.get("/pdfs", async (req, res) => {
 /* ================= DOWNLOAD API ================= */
 
 app.get("/download/:id", async (req, res) => {
+
     try {
+
         const pdf = await Pdf.findById(req.params.id);
 
         if (!pdf) {
+
             return res.status(404).json({
+
                 message: "PDF not found",
+
             });
         }
 
-        // get filename from url
+        // get filename
         const fileName = pdf.url.split("/").pop();
 
-        // force download
+        // force download with filename
         const downloadUrl = pdf.url.replace(
+
             "/upload/",
+
             `/upload/fl_attachment:${fileName}/`
+
         );
 
         res.redirect(downloadUrl);
 
     } catch (error) {
+
         res.status(500).json({
+
             message: error.message,
+
         });
     }
 });
 
-/* ================= DB CONNECT ================= */
+/* ================= DATABASE ================= */
 
 mongoose
     .connect(process.env.MONGO_URI)
+
     .then(() => {
 
         console.log("MongoDB Connected ✅");
 
         app.listen(1000, () => {
+
             console.log("Server running on port 1000 🚀");
+
         });
 
     })
-    .catch((err) => console.log(err));
+
+    .catch((err) => {
+
+        console.log(err);
+
+    });
