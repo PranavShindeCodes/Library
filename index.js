@@ -5,13 +5,14 @@ import multer from "multer";
 import cors from "cors";
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
-import dns from "dns"
+import dns from "dns";
+
 dotenv.config();
 
 dns.setServers([
-    `1.1.1.1`,
-    `8.8.8.8`
-])
+    "1.1.1.1",
+    "8.8.8.8"
+]);
 
 const app = express();
 
@@ -50,23 +51,29 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
     try {
         const { name, std, year, sem } = req.body;
 
-        // ✅ FIX: ensure proper PDF handling
+        // remove .pdf from filename
+        const fileName = req.file.originalname.replace(".pdf", "");
+
+        // upload to cloudinary
         const result = await cloudinary.uploader.upload(req.file.path, {
             resource_type: "raw",
             folder: "pdf_uploads",
-            public_id: req.file.originalname.split(".")[0], // keep filename
-            format: "pdf", // force pdf format
+            public_id: fileName,
+            format: "pdf",
+            use_filename: true,
+            unique_filename: false,
         });
 
-        // delete local file after upload
+        // delete local uploaded file
         fs.unlinkSync(req.file.path);
 
+        // save in mongodb
         const newPdf = new Pdf({
             name,
             std,
             year,
             sem,
-            url: result.secure_url, // ✅ already correct now
+            url: result.secure_url,
         });
 
         await newPdf.save();
@@ -75,6 +82,7 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
             message: "PDF Uploaded Successfully 🚀",
             data: newPdf,
         });
+
     } catch (error) {
         res.status(500).json({
             message: error.message,
@@ -88,6 +96,7 @@ app.get("/pdfs", async (req, res) => {
     try {
         const data = await Pdf.find();
         res.json(data);
+
     } catch (error) {
         res.status(500).json({
             message: error.message,
@@ -95,25 +104,33 @@ app.get("/pdfs", async (req, res) => {
     }
 });
 
-/* ================= DOWNLOAD API (FIXED) ================= */
+/* ================= DOWNLOAD API ================= */
 
 app.get("/download/:id", async (req, res) => {
     try {
         const pdf = await Pdf.findById(req.params.id);
 
         if (!pdf) {
-            return res.status(404).json({ message: "PDF not found" });
+            return res.status(404).json({
+                message: "PDF not found",
+            });
         }
 
-        // ✅ FIX: force download with proper filename
+        // get filename from url
+        const fileName = pdf.url.split("/").pop();
+
+        // force download
         const downloadUrl = pdf.url.replace(
             "/upload/",
-            `/upload/fl_attachment:${pdf.name}.pdf/`
+            `/upload/fl_attachment:${fileName}/`
         );
 
         res.redirect(downloadUrl);
+
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({
+            message: error.message,
+        });
     }
 });
 
@@ -122,10 +139,12 @@ app.get("/download/:id", async (req, res) => {
 mongoose
     .connect(process.env.MONGO_URI)
     .then(() => {
+
         console.log("MongoDB Connected ✅");
 
         app.listen(1000, () => {
             console.log("Server running on port 1000 🚀");
         });
+
     })
     .catch((err) => console.log(err));
