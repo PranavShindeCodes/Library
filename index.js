@@ -29,8 +29,6 @@ cloudinary.config({
 
 /* ================= MONGOOSE SCHEMA ================= */
 
-console.log(process.env.MONGO_URI);
-
 const pdfSchema = new mongoose.Schema({
     name: String,
     std: String,
@@ -56,13 +54,14 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
         const { name, std, year, sem } = req.body;
 
         if (!req.file) {
+
             return res.status(400).json({
                 message: "PDF file required",
             });
         }
 
-        // remove .pdf extension
-        const fileName = req.file.originalname.replace(".pdf", "");
+        // clean filename
+        const fileName = name.replace(/\s+/g, "_");
 
         /* ================= CLOUDINARY UPLOAD ================= */
 
@@ -89,11 +88,14 @@ app.post("/upload-pdf", upload.single("file"), async (req, res) => {
         /* ================= SAVE DATABASE ================= */
 
         const newPdf = new Pdf({
+
             name,
             std,
             year,
             sem,
+
             url: result.secure_url,
+
         });
 
         await newPdf.save();
@@ -138,7 +140,7 @@ app.get("/pdfs", async (req, res) => {
     }
 });
 
-/* ================= DOWNLOAD API ================= */
+/* ================= DOWNLOAD PDF ================= */
 
 app.get("/download/:id", async (req, res) => {
 
@@ -155,21 +157,23 @@ app.get("/download/:id", async (req, res) => {
             });
         }
 
-        // get filename
-        const fileName = pdf.url.split("/").pop();
+        // clean filename
+        const fileName = pdf.name.replace(/\s+/g, "_");
 
-        // force download with filename
+        // proper cloudinary download url
         const downloadUrl = pdf.url.replace(
 
             "/upload/",
 
-            `/upload/fl_attachment:${fileName}/`
+            `/upload/fl_attachment:${fileName}.pdf/`
 
         );
 
         res.redirect(downloadUrl);
 
     } catch (error) {
+
+        console.log(error);
 
         res.status(500).json({
 
